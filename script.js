@@ -59,10 +59,20 @@ scene.add(particleSystem);
 camera.position.z = 30;
 
 const mouse = new THREE.Vector2();
+function updateMousePosition(x, y) {
+    mouse.x = (x / window.innerWidth) * 2 - 1;
+    mouse.y = -(y / window.innerHeight) * 2 + 1;
+}
+
 document.addEventListener('mousemove', (event) => {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    updateMousePosition(event.clientX, event.clientY);
 });
+
+document.addEventListener('touchmove', (event) => {
+    if (event.touches.length > 0) {
+        updateMousePosition(event.touches[0].clientX, event.touches[0].clientY);
+    }
+}, { passive: true });
 
 let time = 0;
 
@@ -97,7 +107,7 @@ function animate() {
         velocities[index + 1] += dy * 0.02;
         velocities[index + 2] += dz * 0.02;
         
-        // Реакция на наведение мыши
+        // Реакция на наведение мыши и касание
         const mx = positions[index] - mouse.x * 15;
         const my = positions[index + 1] - mouse.y * 15;
         const distance = Math.sqrt(mx * mx + my * my);
