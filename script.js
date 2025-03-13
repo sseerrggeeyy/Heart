@@ -12,6 +12,21 @@ const positions = new Float32Array(particleCount * 3);
 const initialPositions = new Float32Array(particleCount * 3);
 const velocities = new Float32Array(particleCount * 3);
 
+// Скорость биения (по умолчанию)
+let heartbeatSpeed = 2;
+let isMouseDown = false; // Флаг нажатой левой кнопки мыши
+
+// Поддержка настроек Wallpaper Engine
+if (window.wallpaperPropertyListener) {
+    window.wallpaperPropertyListener = {
+        applyUserProperties: function(properties) {
+            if (properties.heartbeat_speed) {
+                heartbeatSpeed = properties.heartbeat_speed.value;
+            }
+        }
+    };
+}
+
 // Функция для проверки, находится ли точка внутри формы сердца
 function isInHeart(x, y) {
     const t1 = x * x + y * y - 1;
@@ -58,14 +73,38 @@ scene.add(particleSystem);
 // Установка позиции камеры
 camera.position.z = 30;
 
-const mouse = new THREE.Vector2();
+const mouse = new THREE.Vector3();
 function updateMousePosition(x, y) {
-    mouse.x = (x / window.innerWidth) * 2 - 1;
-    mouse.y = -(y / window.innerHeight) * 2 + 1;
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((x - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((y - rect.top) / rect.height) * 2 + 1;
+
+    // Преобразование экранных координат в координаты сцены
+    const vector = new THREE.Vector3(mouse.x, mouse.y, 0);
+    vector.unproject(camera);
+    const dir = vector.sub(camera.position).normalize();
+    const distance = -camera.position.z / dir.z;
+    mouse.copy(camera.position.clone().add(dir.multiplyScalar(distance)));
 }
 
 document.addEventListener('mousemove', (event) => {
     updateMousePosition(event.clientX, event.clientY);
+});
+
+document.addEventListener('mousedown', (event) => {
+    if (event.button === 0) isMouseDown = true;
+});
+
+document.addEventListener('mouseup', (event) => {
+    if (event.button === 0) isMouseDown = false;
+});
+
+document.addEventListener('touchstart', () => {
+    isMouseDown = true;
+});
+
+document.addEventListener('touchend', () => {
+    isMouseDown = false;
 });
 
 document.addEventListener('touchmove', (event) => {
@@ -79,48 +118,53 @@ let time = 0;
 // Анимация
 function animate() {
     requestAnimationFrame(animate);
-    time += 0.05;
-    
+    time += 0.05 * heartbeatSpeed;
+
     // Эффект пульсации
     const scale = 1 + 0.1 * Math.sin(time * 2);
     particleSystem.scale.set(scale, scale, scale);
-    
+
     for (let i = 0; i < particleCount; i++) {
         const index = i * 3;
         velocities[index] += (Math.random() - 0.5) * 0.02;
         velocities[index + 1] += (Math.random() - 0.5) * 0.02;
         velocities[index + 2] += (Math.random() - 0.5) * 0.02;
-        
+
         velocities[index] *= 0.95;
         velocities[index + 1] *= 0.95;
         velocities[index + 2] *= 0.95;
-        
+
         positions[index] += velocities[index];
         positions[index + 1] += velocities[index + 1];
         positions[index + 2] += velocities[index + 2];
-        
+
         const dx = initialPositions[index] - positions[index];
         const dy = initialPositions[index + 1] - positions[index + 1];
         const dz = initialPositions[index + 2] - positions[index + 2];
-        
+
         velocities[index] += dx * 0.02;
         velocities[index + 1] += dy * 0.02;
         velocities[index + 2] += dz * 0.02;
-        
-        // Реакция на наведение мыши и касание
-        const mx = positions[index] - mouse.x * 15;
-        const my = positions[index + 1] - mouse.y * 15;
-        const distance = Math.sqrt(mx * mx + my * my);
-        if (distance < 5) {
-            const repulsion = (5 - distance) * 0.05;
-            velocities[index] += repulsion * mx;
-            velocities[index + 1] += repulsion * my;
+
+        // Реакция на наведение мыши только при нажатой левой кнопке
+        if (isMouseDown) {
+            const mx = positions[index] - mouse.x;
+            const my = positions[index + 1] - mouse.y;
+            const mz = positions[index + 2] - mouse.z;
+            const distance = Math.sqrt(mx * mx + my * my + mz * mz);
+            if (distance < 5) {  // Увеличен радиус влияния
+                const repulsion = (5 - distance) * 0.15; // Усилено отталкивание
+                velocities[index] += repulsion * mx;
+                velocities[index + 1] += repulsion * my;
+                velocities[index + 2] += repulsion * mz;
+            }
         }
     }
-    
+
     particleSystem.geometry.attributes.position.needsUpdate = true;
     renderer.render(scene, camera);
 }
 
 animate();
+
 
